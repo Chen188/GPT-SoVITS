@@ -443,10 +443,12 @@ def pre_download(ref_wav_path:str)-> None:
 
 def get_tts_wav(ref_wav_path, prompt_text, prompt_language, text, text_language,output_s3uri):
     ref_wav_path = pre_download(ref_wav_path)
-    t0 = ttime()
+    # t0 = ttime()
     prompt_text = prompt_text.strip("\n")
     prompt_language, text = prompt_language, text.strip("\n")
-    zero_wav = np.zeros(int(hps.data.sampling_rate * 0.3), dtype=np.float16 if is_half else np.float32)
+    
+    # reduce silent duration among audio chunks
+    zero_wav = np.zeros(int(hps.data.sampling_rate * 0.1), dtype=np.float16 if is_half else np.float32)
 
     frame_bytes_10ms = hps.data.sampling_rate * 1 * 2 // 100 # sample_rate * channel_num * bytes_per_sample // 100
 
@@ -524,14 +526,6 @@ def get_tts_wav(ref_wav_path, prompt_text, prompt_language, text, text_language,
                 chunk = chunked_audio_bytes[i:i + frame_bytes_10ms]
                 yield chunk
 
-            ##opt2: pack indivitual audio ,write to s3 first , and return s3 file path
-            #chunked_audio_bytes = pack_wav(chunked_audio_bytes,hps.data.sampling_rate)
-            #chunked_audio_bytes = pack_mp3(chunked_audio_bytes,hps.data.sampling_rate)
-            #print("here1===")
-            #print(len(chunked_audio_bytes.getvalue()))
-            #result = write_wav_to_s3(chunked_audio_bytes,output_s3uri)
-            #yield json.dumps(result)
-
     if not stream_mode == "normal":
         if media_type == "wav":
             audio_bytes = pack_wav(audio_bytes,hps.data.sampling_rate)
@@ -581,7 +575,7 @@ def handle(refer_wav_path, prompt_text, prompt_language, text, text_language, cu
         if not default_refer.is_ready():
             return JSONResponse({"code": 400, "message": "未指定参考音频且接口无预设"}, status_code=400)
 
-    if cut_punc == None:
+    if not cut_punc:
         text = cut_text(text,default_cut_punc)
     else:
         text = cut_text(text,cut_punc)
